@@ -11,9 +11,13 @@ The `sample/` directory contains the annotated test sets for three words for eac
 
 The files are encoded as UTF-8 and use columnar format separated by TAB characters. No quoting is used and the first line describes the names of the columns. All the files have the same structure.
 
- - Column `head` represents the headword.
+ - Column `headword` represents the headword.
  - Columns starting with `sense` represent the "gold" annotations, one column per annotator. Value ending with an `x` means that the annotator has not marked this line in any way.
  - Column `text` contains the the sentence, within which the specific occurrence appears.
+
+## Test Files
+
+The `test` directory contains the files to be clustered by your word sense induction system. The format differs from the sample files by omitting the annotation columns, which are used for the evaluation.
   
 ## The Scorer Program
 To obtain a good performance, is written in `Rust`, the source code is in the `scorer/` directory, a prebuilt static binary for x86\_64 Linux is present in the `scorer/bin/` directory.
