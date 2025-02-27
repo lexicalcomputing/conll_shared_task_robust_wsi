@@ -6,7 +6,7 @@ fn usage() {
     eprintln!("");
     eprintln!(" INFILE is a tab-separated file, with a header and no quoting");
     eprintln!("     containing at least:");
-    eprintln!("         - 'head' column");
+    eprintln!("         - 'headword' column");
     eprintln!("         - two or more columns with prefix 'sense' with the sense annotation");
     eprintln!("");
     eprintln!(" When -c CLUSTER_COL is present, the WSI system output is read from the");
@@ -59,13 +59,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             .with_quote_char(None)
         ).with_has_header(true);
     let df_infile = csvopts.clone()
-        .try_into_reader_with_file_path(Some(infile.into()))?
+        .try_into_reader_with_file_path(Some(infile.clone().into()))?
         .finish()?;
 
     let df = if cluster_file.is_some() {
         let mut df_clusterfile = csvopts
             .with_columns(Some(vec![cluster_colname.clone().into()].into()))
-            .try_into_reader_with_file_path(Some(cluster_file.unwrap().into()))?
+            .try_into_reader_with_file_path(Some(cluster_file.clone().unwrap().into()))?
             .finish()?;
         df_clusterfile.rename(&cluster_colname, (cluster_colname.clone() + "__clusterfile__").into())?;
         cluster_colname = cluster_colname + "__clusterfile__";
@@ -74,10 +74,10 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         df_infile
     };
 
-    let gr = df.group_by(["head"])?;
+    let gr = df.group_by(["headword"])?;
 
     let f = |df: DataFrame| {
-        let head = df["head"].try_str().unwrap().get(0).unwrap();
+        let head = df["headword"].try_str().unwrap().get(0).unwrap();
         let mut sense_cols = vec![];
         for col in df.get_columns() {
             if col.name().starts_with("sense") && *col.name() != cluster_colname {
@@ -171,7 +171,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let wsRI = 2.*(TPw*TNw-FPw*FNw)/
             ((TNw+FNw)*(TPw+FPw) + (TNw+FPw)*(TPw+FNw));
 
-        df!("head" => &[head],
+        df!("headword" => &[head],
             "RI" => &[RI],
             "sRI" => &[sRI],
             "wsRI" => &[wsRI],
@@ -184,9 +184,22 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             "Instances" => &[df.height() as u64])
     };
     let mut aggregated = gr.apply(f)?;
-    println!("mean RI: {}", aggregated.column("RI")?.mean_reduce().value());
-    println!("mean sRI: {:?}", aggregated.column("sRI")?.mean_reduce().value());
-    println!("mean wsRI: {:?}", aggregated.column("wsRI")?.mean_reduce().value());
+    let dl = aggregated.clone().lazy().select(
+        &[
+           col("RI").drop_nans().mean(),
+           col("sRI").drop_nans().mean(),
+           col("wsRI").drop_nans().mean(),
+        ]
+    ).collect()?;
+
+    let ri = dl["RI"].f64()?.get(0).unwrap();
+    let sri = dl["sRI"].f64()?.get(0).unwrap();
+    let wsri = dl["wsRI"].f64()?.get(0).unwrap();
+
+    println!("mean RI: {}", ri);
+    println!("mean sRI: {:?}", sri);
+    println!("mean wsRI: {:?}", wsri);
+
     CsvWriter::new(&mut std::io::stdout())
         .include_header(true)
         .include_bom(false)
